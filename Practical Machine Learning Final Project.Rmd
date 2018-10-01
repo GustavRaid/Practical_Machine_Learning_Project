@@ -1,0 +1,63 @@
+---
+title: "Practical Machine Learning Course"
+author: "Adam R"
+date: "September 30th, 2018"
+output: html_document
+---
+## Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+```
+
+## Download and load the data
+```{r data}
+trainurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testurl  <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(trainurl,destfile = "pml-training.csv", method = 'wininet')
+download.file(testurl,destfile = "pml-testing.csv", method = 'wininet')
+rawtrain <- read.csv("pml-training.csv"); rawquiz  <- read.csv("pml-testing.csv")
+```
+## Drop the window summary variable columns
+```{r cleanup}
+rm_cols <- c(1:7, grep('^kurt|^skew|^max|^min|^amp|^var|^avg|^stddev|^total', names(rawtrain)))
+rawtrain2 <- rawtrain[,-rm_cols]
+nzv <- nearZeroVar(rawtrain2, saveMetrics=TRUE)
+## all remaining have variance
+
+```
+## Create a training and test set, model, and find out of sample error
+```{r model}
+set.seed(2733)
+intrain <- createDataPartition(y=rawtrain2$classe, p=.8,list = FALSE)
+training <- rawtrain2[intrain,] ## training Set
+testing <- rawtrain2[-intrain,] ## validation set
+rf1 <- train(classe~., method="rf",ntree = 10, data=training, preprocess = c('box-cox'))
+## default trees is 500 which takes ~100 min to process
+a <- confusionMatrix(predict(rf1,testing), testing$classe)
+a
+```
+Random forest was chosen as the method as this was the method from the origional paper of Ugulino et al. Note that only 10 trees were used for the random forest to change processing time, however, there was little impact on overall accuracy (99.08% with 10 trees 99.34% with 500 trees)
+
+## Create prediction on quiz (validation set)
+```{r quiz}
+rm_colsQ <- c(1:7, grep('^kurt|^skew|^max|^min|^amp|^var|^avg|^stddev|^total', names(rawquiz)))
+rawquiz2 <- rawquiz[,-rm_colsQ]
+predquiz <- predict(rf1,rawquiz2)
+predquiz
+
+```
+## Conclusion
+Excellent accuracy was achieved using raw data with little need to construct additional variables and with a minimal number of trees in the random forest approach. Using this method we could predict with a high degree of confidence whether or not the correct from (A) was used while using weights. 
+
+## Citation:
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, 
+R.; Fuks, H. Wearable Computing: Accelerometers' Data 
+Classification of Body Postures and Movements. Proceedings 
+of 21st Brazilian Symposium on Artificial Intelligence. Advances 
+in Artificial Intelligence - SBIA 2012. In: Lecture Notes in 
+Computer Science. , pp. 52-61. Curitiba, PR: Springer 
+Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. 
+DOI: 10.1007/978-3-642-34459-6_6.
+http://groupware.les.inf.puc-rio.br/har
+
